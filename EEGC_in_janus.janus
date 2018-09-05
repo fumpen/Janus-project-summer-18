@@ -1,0 +1,473 @@
+/*
+this procedure and 'enforce_P ensures that the 'x' stored in 'remainder' is inside F_p 
+*/
+procedure enforce_P_inner(int x, int P, int multi, int remainder)
+    if x < 0 then
+	remainder += x % P
+	multi += x / P
+    else
+        if P <= x then
+            remainder += x % P
+	    multi += x / P
+	else
+	    multi += 1 // must be there in case of x = 0
+	    remainder += x
+        fi ((P * multi) + remainder) <= x
+    fi (multi < 0) && (remainder != 0)
+
+
+/*
+if x is inside the finite field of P, then x is returned in 'remainder', otherwise it is set as
+the number x should be within F_p
+
+    * x: integer to be tested
+    * P: prime to denote finite field
+    * remainder: poor name, but this var stores the result.
+*/
+procedure enforce_P(int x, int P, int remainder)
+    local int multi = 0
+    local int inner_remainder = 0
+    call enforce_P_inner(x, P, multi, inner_remainder)
+    if inner_remainder != 0 then
+        remainder += inner_remainder
+    else
+        remainder += x
+    fi inner_remainder != 0
+    uncall enforce_P_inner(x, P, multi, inner_remainder)
+    delocal int inner_remainder = 0
+    delocal int multi = 0
+    
+
+
+/*
+This procedure and 'inverse_of' is a recursive version of :http://andrea.corbellini.name/2015/05/23/elliptic-curve-cryptography-finite-fields-and-discrete-logarithms/
+
+     * xs: a stack to enable recursivity
+     * [s, old_s, t, old_t, r, old_r] : integers. part of the algorithm.
+         The multiplicative inverse will be stored in 'old_s' 
+*/
+procedure extended_euclidean_algorithm(stack xs, int s, int old_s, int t, int old_t,
+                                       int r, int old_r)
+    local int quotient = old_r / r
+    r <=> old_r
+    r -= quotient * old_r
+    s <=> old_s
+    s -= quotient * old_s
+    t <=> old_t
+    t -= quotient * old_t
+    if r != 0 then
+        call extended_euclidean_algorithm(xs, s, old_s, t, old_t, r, old_r)
+    fi (size(xs) != 0)
+    push(quotient, xs)
+    delocal int quotient = 0
+    
+
+/*
+Computes the multiplicative inverse. 
+	 * n: some int
+	 * p: some prime number
+	 * res: here the multiplicative invers of n (mod p). 'res' should be = 0 before start
+	 * xs: an empty stack
+OBS! because the compiler complains, I cannot locally declare stack variables, but it feels as if it
+should be possible, so i have left them in the code (just commented out)
+*/
+procedure inverse_of(int n, int p, int res, stack xs)
+    //local stack xs = nil
+    local int s = 0
+    local int old_s = 1
+    local int t = 1
+    local int old_t = 0
+    local int r = p
+    local int old_r = n
+    call extended_euclidean_algorithm(xs, s, old_s, t, old_t, r, old_r)
+    if old_r != 1 then
+        // In this case, the supplied p was not a prime. would be nice to raise an error here
+        old_s += 99999999999
+    else
+        res += old_s % p
+    fi res = 0
+    uncall extended_euclidean_algorithm(xs, s, old_s, t, old_t, r, old_r)
+
+    delocal int old_r = n
+    delocal int r = p
+    delocal int old_t = 0
+    delocal int t = 1
+    delocal int old_s = 1
+    delocal int s = 0
+    // delocal stack xs = nil
+
+
+
+/*
+The following procedure adds 2 points together (p1, p2) in the elliptic curve given as:
+    E : Y^2 = X^3 + AX + B
+where:
+	*(x1, y1) = p1
+	*(x2, y2) = p2
+	*(x3, y3) = p3 (the resulting point of the addition)
+	*'elliptic_A' denotes the 'A' in the elliptic curve E in wich p1, p2 & p3 exists 
+	*'P' here is refering to the finite field F_p in wich the points of E recides
+	* xs a stack, that if stacks could be declared locally, was not nessesary to pass
+
+plz note:
+    * there is a lot of local 'i_c' variables ("intermediate calculation"), This may seem
+    excessive, but was done anyway as to ensure no calculation left the bound of F_p without
+    using -p when running the program.
+    * only p3 is subject to change when the procedure is called and it is assumed that
+    p3 = (0, 0) when called.
+*/
+procedure add_two_points(int x1, int y1, int x2, int y2, int x3, int y3,
+                         int elliptic_A, int P, stack xs)
+    if (x1 = 0) && (y1 = 0) then
+        // case 1
+	x3 += x2
+	y3 += y2
+    else
+    
+	if (x2 = 0) && (y2 = 0) then
+	    // case 2
+	    x3 += x1
+	    y3 += y1
+        else
+
+	    local int inv_y2 = 0
+	    call enforce_P(y2 * (-1), P, inv_y2)
+	    if (x1 = x2) && (y1 = inv_y2) then
+	        // case 3
+	        local int a = 0
+		local int b = 0
+	        x3 <=> a
+	        y3 <=> b
+		delocal int b = y3
+		delocal int a = x3
+	    else
+	    
+	        if (x1 = x2) && (y1 = y2) then
+		    // 'lambda'=i_c_6, x3=i_c_9, y3=i_c_12
+		    local int i_c_1 = 0
+		    local int i_c_2 = 0
+		    local int i_c_3 = 0
+		    local int i_c_4 = 0
+		    local int i_c_5 = 0
+		    local int i_c_6 = 0
+		    local int i_c_7 = 0
+		    local int i_c_8 = 0
+		    local int i_c_9 = 0
+		    local int i_c_10 = 0
+		    local int i_c_11 = 0
+		    local int i_c_12 = 0
+		    call enforce_P(x1 * x1, P, i_c_1)
+		    call enforce_P(i_c_1 * 3, P, i_c_2)
+		    call enforce_P(i_c_2 + elliptic_A, P, i_c_3)
+		    call enforce_P(2 * y1, P, i_c_4)
+		    call inverse_of(i_c_4, P, i_c_5, xs)
+		    call enforce_P(i_c_3 * i_c_5, P, i_c_6) 
+		    call enforce_P(i_c_6 * i_c_6, P, i_c_7)
+		    call enforce_P(i_c_7 - x1, P, i_c_8)
+		    call enforce_P(i_c_8 - x2, P, i_c_9)
+		    x3 += i_c_9
+		    call enforce_P(x1 - i_c_9 , P, i_c_10)
+		    call enforce_P(i_c_10 * i_c_6, P, i_c_11)
+		    call enforce_P(i_c_11 - y1, P, i_c_12)
+		    y3 += i_c_12
+
+		    uncall enforce_P(i_c_11 - y1, P, i_c_12)
+		    delocal int i_c_12 = 0
+
+		    uncall enforce_P(i_c_10 * i_c_6, P, i_c_11)
+		    delocal int i_c_11 = 0
+
+		    uncall enforce_P(x1 - i_c_9, P, i_c_10)
+		    delocal int i_c_10 = 0
+
+		    uncall enforce_P(i_c_8 - x2, P, i_c_9)
+		    delocal int i_c_9 = 0
+
+		    uncall enforce_P(i_c_7 - x1, P, i_c_8)
+		    delocal int i_c_8 = 0
+
+		    uncall enforce_P(i_c_6 * i_c_6, P, i_c_7)
+		    delocal int i_c_7 = 0
+
+		    uncall enforce_P(i_c_3 * i_c_5, P, i_c_6)
+		    delocal int i_c_6 = 0
+
+		    uncall inverse_of(i_c_4, P, i_c_5, xs)
+		    delocal int i_c_5 = 0
+		    
+		    uncall enforce_P(2 * y1, P, i_c_4)
+		    delocal int i_c_4 = 0
+
+		    uncall enforce_P(i_c_2 + elliptic_A, P, i_c_3)
+		    delocal int i_c_3 = 0
+
+		    uncall enforce_P(i_c_1 * 3, P, i_c_2)
+		    delocal int i_c_2 = 0
+
+		    uncall enforce_P(x1 * x1, P, i_c_1)
+		    delocal int i_c_1 = 0
+		    
+		    
+		else
+		    // i_c_4='lambda', i_c_7=x3, i_c_10=y3
+		    local int i_c_1 = 0
+		    local int i_c_2 = 0
+		    local int i_c_3 = 0
+		    local int i_c_4 = 0
+		    local int i_c_5 = 0
+		    local int i_c_6 = 0
+		    local int i_c_7 = 0
+		    local int i_c_8 = 0
+		    local int i_c_9 = 0
+		    local int i_c_10 = 0
+		    call enforce_P((y2 - y1), P, i_c_1)
+		    call enforce_P((x2 - x1), P, i_c_2)
+		    call inverse_of(i_c_2, P, i_c_3, xs)
+		    call enforce_P((i_c_1 * i_c_3), P, i_c_4)
+		    call enforce_P(i_c_4 * i_c_4, P, i_c_5)
+		    call enforce_P(i_c_5 - x1, P, i_c_6)
+		    call enforce_P(i_c_6 - x2, P, i_c_7)
+           	    x3 += i_c_7
+		    call enforce_P(x1 - i_c_7, P, i_c_8)
+		    call enforce_P(i_c_4 * i_c_8, P, i_c_9)
+		    call enforce_P(i_c_9 - y1, P, i_c_10)
+		    y3 += i_c_10
+
+		    uncall enforce_P(i_c_9 - y1, P, i_c_10)
+		    delocal int i_c_10 = 0
+
+		    uncall enforce_P(i_c_4 * i_c_8, P, i_c_9)
+		    delocal int i_c_9 = 0
+
+		    uncall enforce_P(x1 - i_c_7, P, i_c_8)
+		    delocal int i_c_8 = 0
+
+		    uncall enforce_P(i_c_6 - x2, P, i_c_7)
+		    delocal int i_c_7 = 0
+
+		    uncall enforce_P(i_c_5 - x1, P, i_c_6)
+		    delocal int i_c_6 = 0
+
+		    uncall enforce_P(i_c_4 * i_c_4, P, i_c_5)
+		    delocal int i_c_5 = 0
+
+		    uncall enforce_P((i_c_1 * i_c_3), P, i_c_4)
+		    delocal int i_c_4 = 0
+
+		    uncall inverse_of(i_c_2, P, i_c_3, xs)
+		    delocal int i_c_3 = 0
+
+		    uncall enforce_P((x2 - x1), P, i_c_2)
+		    delocal int i_c_2 = 0
+
+		    uncall enforce_P((y2 - y1), P, i_c_1)
+		    delocal int i_c_1 = 0
+
+		    
+		fi (x1 = x2) && (y1 = y2)
+
+	    fi (x1 = x2) && (y1 = inv_y2)
+	    uncall enforce_P(y2 * (-1), P, inv_y2)
+	    delocal int inv_y2 = 0
+
+
+        fi (x2 = 0) && (y2 = 0)
+	
+    fi (x1 = 0) && (y1 = 0)
+
+
+
+/*
+This procedure allows for multiplication to be done with way fewer steps (although with a stack
+that grows with 5 integers pr recursion)
+     * (x1, y1): the point that is being doubled
+     * (x2, y2): the point that is accumulating the result
+     * [elliptic_A, P, xs] : args for the 'add_two_points' procedure
+     * ys: a stack to enable recurcivity
+     * n: number of times that (x1, y1) is multiplied with itself. 
+*/
+procedure double_and_add_inner(int x1, int y1, int x2, int y2, int elliptic_A,
+                               int P, stack xs, stack ys, int n)
+    
+    if (n % 2) = 1 then
+        local int new_x = 0
+        local int new_y = 0
+        call add_two_points(x1, y1, x2, y2, new_x, new_y, elliptic_A, P, xs)
+        x2 <=> new_x
+	y2 <=> new_y
+	push(new_x, ys)
+	push(new_y, ys)
+	delocal int new_y = 0
+	delocal int new_x = 0
+    fi (n % 2) = 1
+
+
+    local int new_x = 0
+    local int new_y = 0
+    call add_two_points(x1, y1, x1, y1, new_x, new_y, elliptic_A, P, xs)
+    x1 <=> new_x
+    y1 <=> new_y
+    push(new_x, ys)
+    push(new_y, ys)
+    delocal int new_y = 0
+    delocal int new_x = 0
+
+    local int new_n = n / 2
+    n <=> new_n
+    
+    if n > 0 then
+        call double_and_add_inner(x1, y1, x2, y2, elliptic_A, P, xs, ys, n)
+    fi new_n > 1
+    push(new_n, ys)
+    delocal int new_n = 0
+
+/*
+there is really no point in having this procedure. I included it to illustrate that
+'ys' can be removed with bennets trick here.
+*/
+procedure double_and_add(int x1, int y1, int x2, int y2, int elliptic_A,
+                         int P, stack xs, stack ys, int n)
+    // local stack ys = nil
+    local int inner_x = 0
+    local int inner_y = 0
+
+    call double_and_add_inner(x1, y1, inner_x, inner_y, elliptic_A, P, xs, ys, n)
+    x2 += inner_x
+    y2 += inner_y
+    uncall double_and_add_inner(x1, y1, inner_x, inner_y, elliptic_A, P, xs, ys, n)
+    
+    delocal int inner_y = 0
+    delocal int inner_x = 0
+    //delocal stack ys = nil
+
+
+
+/*
+Inverts whatever int is provided
+*/
+procedure inv_int(int x)
+    local int y = x
+    x -= (2 * y)
+    delocal int y = x * (-1)
+
+
+
+/*
+Produces a public key
+	 * priv_key: private key
+	 * (x1, y1): The choosen public point P on the elliptic curve 
+	 * (pub_x, pub_y): the reslting public key is stored here
+	 * [elliptic_A, P, xs, ys]: args for 'double_and_add' procedure
+*/
+procedure make_pub_key(int priv_key, int x1, int y1, int pub_x, int pub_y, int elliptic_A,
+                       int P, stack xs, stack ys)
+    call double_and_add(x1, y1, pub_x, pub_y, elliptic_A,
+                        P, xs, ys, priv_key)
+
+
+/*
+Encrypts a point M on the elliptic curve E as two other points on E
+	 * (message_x, message_y): the point M to be encrypted
+	 * eph_key: the ephemeral key choosen when encrypting a message
+	 * (pub_x, pub_y): the public key of the intended recipient
+	 * (x1, y1): The choosen public point P on the elliptic curve
+	 * (c1_x, c1_y): one of the two ciphertext points produced in the encryption
+	 * (c2_x, c2_y): The other ciphertext point.
+	     Both C1 & C2 are assumed to be=(0,0) when 'enc_message' is call'ed
+	 * [elliptic_A, P, xs, ys]: args for 'double_and_add' procedure
+*/
+procedure enc_message(int message_x, int message_y, int eph_key, int pub_x, int pub_y,
+	              int x1, int y1, int c1_x, int c1_y, int c2_x, int c2_y, int elliptic_A,
+		      int P, stack xs, stack ys)
+    call double_and_add(x1, y1, c1_x, c1_y, elliptic_A,
+                        P, xs, ys, eph_key) // compute c1
+    local int tmp_x = 0
+    local int tmp_y = 0
+    call double_and_add(pub_x, pub_y, tmp_x, tmp_y, elliptic_A,
+                        P, xs, ys, eph_key)
+    call add_two_points(message_x, message_y, tmp_x, tmp_y, c2_x, c2_y,
+                        elliptic_A, P, xs)
+    uncall double_and_add(pub_x, pub_y, tmp_x, tmp_y, elliptic_A,
+                        P, xs, ys, eph_key)
+    delocal int tmp_y = 0
+    delocal int tmp_x = 0
+
+/*
+Decrypts a ciphertext point pair (C1 & C2) into a decrypted point on the curve E.
+	 * (message_x, message_y): Here the decrypted point M is stored.
+	     It is assumed that M = (0,0) when 'dec_message' is called.
+	 * priv_key: private key.
+	 * (c1_x, c1_y): one of the two ciphertext points.
+	 * (c2_x, c2_y): The other ciphertext point.
+	 * * [elliptic_A, P, xs, ys]: args for 'double_and_add' procedure
+*/
+procedure dec_message(int message_x, int message_y, int priv_key, int c1_x, int c1_y,
+                      int c2_x, int c2_y, int elliptic_A, int P, stack xs, stack ys)
+    local int tmp_x = 0
+    local int tmp_y = 0
+    call double_and_add(c1_x, c1_y, tmp_x, tmp_y, elliptic_A,
+                        P, xs, ys, priv_key)
+    call inv_int(tmp_y)
+    call add_two_points(c2_x, c2_y, tmp_x, tmp_y, message_x, message_y,
+                        elliptic_A, P, xs)
+    uncall inv_int(tmp_y)
+    uncall double_and_add(c1_x, c1_y, tmp_x, tmp_y, elliptic_A,
+                        P, xs, ys, priv_key)
+    delocal int tmp_y = 0
+    delocal int tmp_x = 0			
+
+
+procedure main()
+    int p1x = 9
+    int p1y = 7
+    int p2x = 1
+    int p2y = 8
+    int p3x = 0
+    int p3y = 0
+    int pub_x = 0
+    int pub_y = 0
+    int c1_x = 0
+    int c1_y = 0
+    int c2_x = 0
+    int c2_y = 0
+    int dec_x = 0
+    int dec_y = 0
+    int a = 3
+    int p = 13
+    stack xs
+    stack ys
+    int n = 5
+    int priv_key = 22
+    int emp_key = 123
+
+    // test case 5
+    call add_two_points(p1x, p1y, p2x, p2y, p3x, p3y, a, p, xs)
+    printf("Test if [ (%d, %d) ] == (2, 10)", p3x, p3y)
+    uncall add_two_points(p1x, p1y, p2x, p2y, p3x, p3y, a, p, xs)
+    // test case 4
+    call add_two_points(p1x, p1y, p1x, p1y, p3x, p3y, a, p, xs)
+    printf("Test if [ (%d, %d) ] == (9, 6)", p3x, p3y)
+    uncall add_two_points(p1x, p1y, p1x, p1y, p3x, p3y, a, p, xs)
+
+    call double_and_add_inner(p1x, p1y, p3x, p3y, a, p, xs, ys, n)
+    uncall double_and_add_inner(p1x, p1y, p3x, p3y, a, p, xs, ys, n)
+    call double_and_add(p1x, p1y, p3x, p3y, a, p, xs, ys, n)
+    uncall double_and_add(p1x, p1y, p3x, p3y, a, p, xs, ys, n)
+
+    // Testing whether a public key can be sucessfully created
+    // with P1=(p1x,p1y) and the result stored in (pub_x, pub_y)
+    call make_pub_key(priv_key, p1x, p1y, p3x, p3y, a,
+                      p, xs, ys)
+    pub_x += p3x
+    pub_y += p3y
+    uncall make_pub_key(priv_key, p1x, p1y, p3x, p3y, a,
+                        p, xs, ys)
+
+    // Encrypting the point P2 into C1 & C2
+    call enc_message(p2x, p2y, emp_key, pub_x, pub_y,
+	              p1x, p1y, c1_x, c1_y, c2_x, c2_y, a,
+		      p, xs, ys)
+    // Decrypting the points C1 & C2 hopefully back into P2
+    call dec_message(dec_x, dec_y, priv_key, c1_x, c1_y, c2_x, c2_y,
+                a, p, xs, ys)
+    printf("Test if [ %d, %d ] == (1, 8)", dec_x, dec_y)
